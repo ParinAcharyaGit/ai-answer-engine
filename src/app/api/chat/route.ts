@@ -4,28 +4,29 @@
 // Refer to the Cheerio docs here on how to parse HTML: https://cheerio.js.org/docs/basics/loading
 // Refer to Puppeteer docs here: https://pptr.dev/guides/what-is-puppeteer
 
-import { NextResponse } from "next/server"
-import { GetGroqResponse } from "@/app/utils/groqUtils"
-import { scrapeUrl, urlPattern } from "@/app/utils/scraper"
-
+import { NextResponse } from "next/server";
+import { GetGroqResponse } from "@/app/utils/groqUtils";
+import { scrapeUrl, urlPattern } from "@/app/utils/scraper";
 
 export async function POST(req: Request) {
   try {
-    const { message } = await req.json()
-    console.log("message received: ", message)
+    const { message, messages } = await req.json(); // History of messages
+    console.log("message received: ", message);
 
-    const url = message.match(urlPattern)
+    const url = message.match(urlPattern);
     let scrapedContent = "";
-    if (url) {
-      console.log("URL found", url)
-      const scrapedResponse = await scrapeUrl(url);
-      scrapedContent = scrapedResponse.content;
+    if (url && url[0]) {
+      console.log("URL found", url[0]);
+      const scrapedResponse = await scrapeUrl(url[0]);
+      if (scrapedResponse) {
+        scrapedContent = scrapedResponse.content;
+      }
       console.log("Scraped content:", scrapedContent);
     }
 
-    const userQuery = message.replace(url ? url[0] : '', '').trim()
+    const userQuery = message.replace(url ? url[0] : "", "").trim();
 
-    const prompt = `
+    const userPrompt = `
     Answer my question: "${userQuery}"
 
     Based on the following content:
@@ -34,14 +35,19 @@ export async function POST(req: Request) {
     </content>
 
     Present the response in a readable format
-    `
-    console.log("PROMPT:", prompt)
-    const response = await GetGroqResponse(prompt)
+    `;
+    const llmMessages = [
+      ...messages,
+      {
+        role: "user",
+        content: prompt,
+      },
+    ];
+    console.log("PROMPT:", prompt);
+    const response = await GetGroqResponse(llmMessages);
 
-    return NextResponse.json({ message: response })
-
+    return NextResponse.json({ message: response });
   } catch (error) {
-
-    return NextResponse.json({ message: "Error" })
+    return NextResponse.json({ message: "Error" });
   }
 }
